@@ -1,0 +1,299 @@
+---
+title: "Bayesian analysis for a semiparametric meta-analysis model using a Dirichlet Process Mixture of Normals prior"
+author: 
+  - name: Joon-Ho Lee (joonho@berkeley.edu)
+date: "February 28, 2020"
+output:
+  html_document: 
+    css: styles.css
+    fig_caption: yes
+    highlight: haddock
+    number_sections: yes
+    theme: readable
+    toc: yes
+    toc_depth: 2
+  tufte::tufte_html:
+    number_sections: yes
+    toc: true
+    toc_depth: 2
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+bibliography: bibliography.bib
+---
+
+```{r basic_setup, include=FALSE}
+### Set working directory
+setwd("~/meta-analysis/01_DPmeta")
+
+### Set RMarkdown options
+knitr::opts_chunk$set(echo = TRUE, warnings = FALSE, message = FALSE)
+
+### Call libraries
+library(tidyverse)
+library(cowplot)
+library(DPpackage)
+
+# ### Set Stan options
+# # options(mc.cores = parallel::detectCores())
+# rstan_options(auto_write = TRUE)
+# Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+
+### Theme settings
+theme_preset <- 
+  theme_bw() + 
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(), 
+        legend.position = "bottom", 
+        legend.direction = "horizontal", 
+        legend.title = element_blank())
+```
+
+
+# `DPmeta`
+
+This function generates a posterior density sample for a semiparametric linear mixed effects metaanalysis model using a Dirichlet process or a Mixture of Dirichlet process prior for the distribution of the random effects. 
+
+```{r}
+##################################################################
+# Data on the effectiveness of silver sulfadiazine coating
+# on venous catheters for preventing bacterial colonisation of
+# the catheter and bloodstream infection.
+# Veenstra D et al (1998) "Efficacy of Antiseptic Impregnated
+# Central Venous Catheters in Preventing Nosocomial Infections:
+# A Meta-analysis" JAMA 281:261-267.
+#
+# Note that -Inf and Inf have been replaced by NA.
+##################################################################
+
+
+studies <- c("Tennenberg","Maki","vanHeerden", 
+             "Hannan","Bach(a)","Bach(b)", 
+             "Heard","Collins","Ciresi","Ramsay", 
+             "Trazzera","George")
+
+logOR <- c(-1.5187189,-0.7136877,-1.3217558,-0.1910552,NA,
+           -2.2005195,-0.5057461,-2.3538784,-0.3643810, 
+           -0.5371429,-0.7608058,-2.1400662)
+
+varlogOR <- c(0.4157541,0.2632550,0.6739189,0.3727788,NA,
+              0.7623470,0.2306169,0.7477891,0.3645463,0.2291839, 
+              0.3561542,0.5190489)^2
+
+names(logOR) <- studies
+names(varlogOR) <- studies
+
+y <- cbind(logOR,varlogOR)
+
+colnames(y) <- c("logOR","varlogOR")
+
+prior<-list(alpha=1, tau1=20,tau2=10,mub=0,Sb=100)
+
+# Initial state
+state <- NULL
+
+# MCMC parameters
+nburn<-20000
+nsave<-10000
+nskip<-20
+ndisplay<-100
+
+mcmc <- list(nburn=nburn, 
+             nsave=nsave,
+             nskip=nskip,
+             ndisplay=ndisplay)
+
+# Fit the model: First run
+fit1<-DPmeta(formula=y~1,prior=prior,mcmc=mcmc,state=state,status=TRUE)
+fit1
+# Summary with HPD and Credibility intervals
+summary(fit1)
+summary(fit1,hpd=FALSE)
+
+# Plot model parameters (to see the plots gradually set ask=TRUE)
+plot(fit1,ask=FALSE)
+plot(fit1,ask=FALSE,nfigr=2,nfigc=2)
+
+# Prior information
+```
+
+
+# `DPMmeta`
+
+This function generates a posterior density sample for a semiparametric linear mixed effects metaanalysis model using a Dirichlet Process Mixture of Normals prior for the distribution of the random effects. 
+
+```{r}
+##############################################################    
+# Data on the effectiveness of silver sulfadiazine coating
+# on venous catheters for preventing bacterial colonisation of 
+# the catheter and bloodstream infection. 
+# Veenstra D et al (1998) "Efficacy of Antiseptic Impregnated 
+# Central Venous Catheters in Preventing Nosocomial Infections: 
+# A Meta-analysis" JAMA 281:261-267. 
+#
+# Note that -Inf and Inf have been replaced by NA.
+##################################################################    
+    
+studies <- c("Tennenberg","Maki","vanHeerden",
+              "Hannan","Bach(a)","Bach(b)",
+              "Heard","Collins","Ciresi","Ramsay",
+              "Trazzera","George")    
+
+logOR <- c(-1.5187189,-0.7136877,-1.3217558,-0.1910552,
+            NA,-2.2005195,-0.5057461,-2.3538784,-0.3643810,
+            -0.5371429,-0.7608058,-2.1400662)
+ 
+varlogOR <- c(0.4157541,0.2632550,0.6739189,0.3727788,NA,
+              0.7623470,0.2306169,0.7477891,0.3645463,0.2291839,
+              0.3561542,0.5190489)^2
+
+names(logOR) <- studies
+names(varlogOR) <- studies
+y <- cbind(logOR,varlogOR)
+colnames(y) <- c("logOR","varlogOR")
+
+# Prior information
+
+prior<-list(alpha=1,
+            tau01=20,
+            tau02=10,
+            tau11=20,
+            tau12=10,
+            mb=0,
+            Sb=100)
+
+# Initial state
+state <- NULL
+
+
+# MCMC parameters
+
+nburn<-20000
+nsave<-10000
+nskip<-20
+ndisplay<-100
+mcmc <- list(nburn=nburn,
+             nsave=nsave,
+             nskip=nskip,
+             ndisplay=ndisplay)
+
+# Fit the model: First run
+
+fit1<-DPMmeta(formula=y~1,prior=prior,mcmc=mcmc,
+              state=state,status=TRUE)
+fit1
+
+# Summary with HPD and Credibility intervals
+summary(fit1)
+summary(fit1,hpd=FALSE)
+
+# Plot model parameters (to see the plots gradually set ask=TRUE)
+plot(fit1,ask=FALSE)
+plot(fit1,ask=FALSE,nfigr=2,nfigc=2)	
+```
+
+
+# `PTmeta`
+
+This function generates a posterior density sample for a semiparametric linear mixed effects meta-analysis model using a Polya Tree or a Mixture of Polya Trees prior for the distribution of the random effects.
+
+
+```{r}
+##############################################################    
+# Data on the effectiveness of silver sulfadiazine coating
+# on venous catheters for preventing bacterial colonisation of 
+# the catheter and bloodstream infection. 
+# Veenstra D et al (1998) "Efficacy of Antiseptic Impregnated 
+# Central Venous Catheters in Preventing Nosocomial Infections: 
+# A Meta-analysis" JAMA 281:261-267. 
+#
+# Note that -Inf and Inf have been replaced by NA.
+##################################################################    
+
+studies <- c("Tennenberg","Maki","vanHeerden",
+              "Hannan","Bach(a)","Bach(b)",
+              "Heard","Collins","Ciresi","Ramsay",
+              "Trazzera","George")    
+
+logOR <- c(-1.5187189,-0.7136877,-1.3217558,-0.1910552,
+            NA,-2.2005195,-0.5057461,-2.3538784,-0.3643810,
+            -0.5371429,-0.7608058,-2.1400662)
+ 
+varlogOR <- c(0.4157541,0.2632550,0.6739189,0.3727788,NA,
+              0.7623470,0.2306169,0.7477891,0.3645463,0.2291839,
+              0.3561542,0.5190489)^2
+
+names(logOR) <- studies
+names(varlogOR) <- studies
+y <- cbind(logOR,varlogOR)
+colnames(y) <- c("logOR","varlogOR")
+
+
+# Initial state
+state <- NULL
+
+# MCMC parameters
+
+nburn<-20000
+nsave<-10000
+nskip<-20
+ndisplay<-100
+mcmc <- list(nburn=nburn,
+             nsave=nsave,
+             nskip=nskip,
+             ndisplay=ndisplay)
+
+# Prior information 1: non-median zero PT
+
+prior1<-list(alpha=1,
+             tau1=20,
+             tau2=10,
+             mub=0,
+             Sb=100,
+             M=4)
+
+# Prior information 2: median zero PT
+
+prior2<-list(alpha=1,
+             tau1=20,
+             tau2=10,
+             mub=0,
+             Sb=100,
+             M=4,
+             frstlprob=TRUE,
+             Sbeta0=diag(1000,1),
+             beta0=rep(0,1))
+             
+
+# Fitting the models
+
+fit1<-PTmeta(formula=y~1,prior=prior1,mcmc=mcmc,
+             state=state,status=TRUE)
+fit1
+
+
+fit2<-PTmeta(formula=y~1,prior=prior2,mcmc=mcmc,
+             state=state,status=TRUE)
+fit2
+
+# Summary with HPD and Credibility intervals
+summary(fit1)
+summary(fit1,hpd=FALSE)
+
+summary(fit2)
+summary(fit2,hpd=FALSE)
+
+# Plot model parameters (to see the plots gradually set ask=TRUE)
+plot(fit1,ask=FALSE)
+plot(fit1,ask=FALSE,nfigr=2,nfigc=2)	
+
+plot(fit2,ask=FALSE)
+plot(fit2,ask=FALSE,nfigr=2,nfigc=2)
+```
+
+
+
+# References
+
+
+
