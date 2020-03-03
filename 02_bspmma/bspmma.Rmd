@@ -1,0 +1,138 @@
+---
+title: "Bayesian semiparametric models for meta-analysis"
+author: 
+  - name: Joon-Ho Lee (joonho@berkeley.edu)
+date: "February 29, 2020"
+output:
+  html_document: 
+    css: styles.css
+    fig_caption: yes
+    highlight: haddock
+    number_sections: yes
+    theme: readable
+    toc: yes
+    toc_depth: 2
+  tufte::tufte_html:
+    number_sections: yes
+    toc: true
+    toc_depth: 2
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+bibliography: bibliography.bib
+---
+
+```{r basic_setup, include=FALSE}
+### Set working directory
+setwd("~/meta-analysis/02_bspmma")
+
+### Set RMarkdown options
+knitr::opts_chunk$set(echo = TRUE, warnings = FALSE, message = FALSE)
+
+### Call libraries
+library(tidyverse)
+library(cowplot)
+library(DPpackage)
+library(bspmma)
+
+# ### Set Stan options
+# # options(mc.cores = parallel::detectCores())
+# rstan_options(auto_write = TRUE)
+# Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+
+### Theme settings
+theme_preset <- 
+  theme_bw() + 
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(), 
+        legend.position = "bottom", 
+        legend.direction = "horizontal", 
+        legend.title = element_blank())
+```
+
+
+# Example 1: Effect of NSAIDs on breast cancer
+
+
+```{r}
+library(bspmma)
+data(breast.17) # the dataset
+breast.data <- as.matrix(breast.17) # put data in matrix object
+
+set.seed(1) # initialize the seed at 1 for test purposes
+breast.c1 <- dirichlet.c(breast.data, ncycles=4000, M=5)
+breast.c2 <- dirichlet.c(breast.data,ncycles=4000, M=1000)
+```
+
+
+```{r}
+library(coda)
+breast.coda <- mcmc(breast.c1$chain)
+autocorr.plot(breast.coda[, 15:19])
+breast.c1c2 <- list("5" = breast.c1$chain, "1000" = breast.c2$chain)
+draw.post(breast.c1c2, burnin = 100)
+describe.post(breast.c1c2, burnin = 100)
+```
+
+
+# Example 2: Decontamination of the digestive tract
+
+```{r}
+data("ddtm.s")
+ddtm.s
+ddtm.s$treat.deaths <- ddtm.s$treat.deaths + 0.5
+ddtm.s$treat.total <- ddtm.s$treat.total + 1
+ddtm.s$cont.deaths <- ddtm.s$cont.deaths + 0.5
+ddtm.s$cont.total <- ddtm.s$cont.total + 1
+attach(ddtm.s)
+```
+
+```{r}
+or <- (treat.deaths / (treat.total - treat.deaths)) /
+  (cont.deaths / (cont.total - cont.deaths))
+
+lor <- log(or)
+
+se.lor <- ((treat.total / (treat.deaths * (treat.total - treat.deaths))) + 
+             (cont.total / (cont.deaths * (cont.total - cont.deaths))))^0.5
+ddtm.14 <- data.frame(psi.hat = lor, se.psi.hat = se.lor)
+
+ddtm.14
+```
+
+```{r}
+ddtm.s.data <- as.matrix(ddtm.14)
+set.seed(1)
+ddtm.s.c1 <- dirichlet.c(ddtm.s.data, ncycles = 4000, M = 5)
+set.seed(1)
+ddtm.s.c2 <- dirichlet.c(ddtm.s.data, ncycles = 4000, M = 20)
+set.seed(1)
+ddtm.s.c3 <- dirichlet.c(ddtm.s.data, ncycles = 4000, M = 100)
+ddtm.s.l1 <- list("5" = ddtm.s.c1$chain, "20" = ddtm.s.c2$chain,
+                  "100" = ddtm.s.c3$chain)
+draw.post(ddtm.s.l1, burnin = 100)
+describe.post(ddtm.s.l1, burnin = 100)
+```
+
+
+# Bayes factors for breast cancer data
+
+```{r}
+data("breast.17")
+breast.data <- as.matrix(breast.17)
+chain1.list <- bf1(breast.data, ncycles = 5000, burnin = 1000)
+cc <- bf2(chain1.list)
+chain2.list <- bf1(breast.data, seed = 2, ncycles = 5000, burnin = 1000)
+breast.bfco <- bf.c.o(from = 0.8, incr = 0.2, to = 20, cc = cc, mat.list = chain2.list)
+draw.bf(breast.bfco)
+breast.bfo <- bf.o(from = 0.8, incr = 0.2, to = 20,cc = cc, mat.list = chain2.list)
+draw.bf(breast.bfo)
+breast.bfo$y[9] / breast.bfo$yinfinity
+```
+
+
+
+# References
+
+
+
